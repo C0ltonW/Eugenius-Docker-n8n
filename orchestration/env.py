@@ -51,7 +51,8 @@ def load_env() -> Dict[str, str]:
 
     # --- Generate required secrets if missing ---
     env.setdefault("N8N_ENCRYPTION_KEY", secrets.token_hex(32))
-    env.setdefault("POSTGRES_PASSWORD", secrets.token_hex(16))
+    if not env.get("POSTGRES_PASSWORD"):
+        env["POSTGRES_PASSWORD"] = secrets.token_hex(16)
 
     # --- Ensure project name always exists ---
     env.setdefault("COMPOSE_PROJECT_NAME", DEFAULT_PROJECT_NAME)

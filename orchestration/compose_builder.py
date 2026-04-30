@@ -71,7 +71,7 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "environment": {
                 "POSTGRES_DB": env.get("POSTGRES_DB", "n8n"),
                 "POSTGRES_USER": env.get("POSTGRES_USER", "n8n"),
-                "POSTGRES_PASSWORD": env.get("POSTGRES_PASSWORD", "n8n"),
+                "POSTGRES_PASSWORD": env["POSTGRES_PASSWORD"],
                 "TZ": env.get("TZ", "America/New_York"),
             },
             "volumes": [
