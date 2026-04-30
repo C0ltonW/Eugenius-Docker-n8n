@@ -1,7 +1,7 @@
 # orchestration/compose_builder.py
 from typing import Dict, Set, Iterable
 from pathlib import Path
-
+from .log import info, caution
 from .constants import PROFILES, DEFAULT_PROJECT_NAME
 
 
@@ -41,6 +41,14 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
     """
     Build an in-memory docker-compose model for n8n local development.
     """
+
+    info(f"Building Docker Compose configuration (profile: {profile})")
+
+    caution(
+        "Do not change N8N_ENCRYPTION_KEY after first startup.\n"
+        "Changing it will prevent n8n from starting and may break saved credentials."
+    )
+
     if profile not in PROFILES:
         raise ValueError(
             f"Unknown profile '{profile}'. Available: {list(PROFILES.keys())}"
@@ -65,6 +73,7 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
     # Postgres
     # --------------------
     if "db" in services_enabled:
+        info("Postgres service enabled")
         services["postgres"] = {
             "image": env.get("POSTGRES_IMAGE", "postgres:15"),
             "container_name": f"{project_name}_postgres",
@@ -175,6 +184,7 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
         # Optional local Dockerfile override (path safe regardless of cwd)
         dockerfile = ROOT / "docker" / "n8n" / "Dockerfile"
         if dockerfile.exists():
+            info("Local n8n Dockerfile detected — building image on the fly")
             services["n8n"]["build"] = {"context": str(dockerfile.parent)}
             services["n8n"]["image"] = f"{project_name}-n8n:dev"
 
@@ -182,6 +192,7 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
     # Ollama (AI sidecar)
     # --------------------
     if "ollama" in services_enabled:
+        info("Ollama AI sidecar enabled")
         services["ollama"] = {
             "image": env.get("OLLAMA_IMAGE", "ollama/ollama:latest"),
             "container_name": f"{project_name}_ollama",
@@ -198,6 +209,7 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
     # Adminer (optional)
     # --------------------
     if "adminer" in services_enabled:
+        info("Administrator enabled")
         services["adminer"] = {
             "image": env.get("ADMINER_IMAGE", "adminer:latest"),
             "container_name": f"{project_name}_adminer",
