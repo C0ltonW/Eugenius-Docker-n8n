@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
@@ -9,12 +10,21 @@ COMPOSE_FILE = ROOT / "docker-compose.yml"
 
 def docker_compose(args: List[str]) -> None:
     """
-    Thin wrapper around `docker compose`.
-
-    Assumes:
-      - docker-compose.yml already exists
-      - docker handles errors
+    Thin wrapper around `docker compose` with friendly errors.
     """
     cmd = ["docker", "compose", "-f", str(COMPOSE_FILE)] + args
     print(">>", " ".join(cmd))
-    subprocess.check_call(cmd)
+
+    try:
+        subprocess.check_call(cmd)
+    except FileNotFoundError:
+        sys.exit(
+            "❌ Docker is not installed.\n"
+            "👉 Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
+        )
+    except subprocess.CalledProcessError:
+        sys.exit(
+            "❌ Docker command failed.\n"
+            "👉 Is Docker running?\n"
+            "👉 Try restarting Docker Desktop."
+        )
