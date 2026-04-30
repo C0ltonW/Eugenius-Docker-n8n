@@ -13,10 +13,11 @@ RUN apk add --no-cache \
     git \
     ca-certificates
 
-# --- Optional Python tooling (keep minimal for now) ---
-# You can add libs later as you need them
-RUN pip3 install --no-cache-dir \
+# --- Python tooling ---
+# NOTE: --break-system-packages is REQUIRED on Alpine (PEP 668)
+RUN pip3 install --no-cache-dir --break-system-packages \
     requests
 
 # Drop back to node user (important)
 USER node
+``
