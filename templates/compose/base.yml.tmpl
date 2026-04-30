@@ -1,0 +1,67 @@
+name: n8nstack
+services:
+  postgres:
+    image: postgres:15
+    container_name: n8n_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      TZ: ${TZ}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: ${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS}
+      N8N_RUNNERS_ENABLED: ${N8N_RUNNERS_ENABLED}
+
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: ${N8N_PORT}
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      EXECUTIONS_DATA_PRUNE: ${EXECUTIONS_DATA_PRUNE}
+      EXECUTIONS_DATA_MAX_AGE: ${EXECUTIONS_DATA_MAX_AGE}
+      EXECUTIONS_DATA_SAVE_ON_ERROR: ${EXECUTIONS_DATA_SAVE_ON_ERROR}
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: ${EXECUTIONS_DATA_SAVE_ON_SUCCESS}
+
+      NODE_OPTIONS: ${NODE_OPTIONS:-}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+
+volumes:
+  postgres_data:
+  n8n_data:
+  n8n_files:
+``
