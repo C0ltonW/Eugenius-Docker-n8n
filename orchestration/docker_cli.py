@@ -13,7 +13,7 @@ def docker_compose(args: List[str]) -> None:
     """
     Thin wrapper around `docker compose` with friendly errors.
     """
-    info("Starting Docker containers")
+    info("Showing container status")
     cmd = ["docker", "compose", "-f", str(COMPOSE_FILE)] + args
     print(">>", " ".join(cmd))
 

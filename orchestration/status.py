@@ -17,7 +17,8 @@ def _docker_running() -> bool:
 
 def _docker_compose_ps():
     """
-    Return docker compose ps output as parsed JSON.
+    Return docker compose ps output as a list of JSON objects.
+    Handles one-JSON-object-per-line output correctly.
     """
     cmd = [
         "docker", "compose",
@@ -25,8 +26,24 @@ def _docker_compose_ps():
         "ps",
         "--format", "json",
     ]
-    output = subprocess.check_output(cmd)
-    return json.loads(output)
+
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,  # critical: do NOT fail on exit code
+    )
+
+    services = []
+
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        services.append(json.loads(line))
+
+    return services
 
 
 def show_status() -> None:
@@ -61,9 +78,10 @@ def show_status() -> None:
         return
 
     running = []
-    stopped = []
-    unhealthy = []
+    starting = []
     restarting = []
+    unhealthy = []
+    stopped = []
 
     for svc in services:
         name = svc.get("Service", "unknown")
@@ -72,47 +90,49 @@ def show_status() -> None:
 
         if state == "restarting":
             restarting.append(name)
-        elif state == "running" and health in ("", "healthy"):
-            running.append(name)
+
+        elif health == "starting":
+            starting.append(name)
+
         elif health == "unhealthy":
             unhealthy.append(name)
+
+        elif state == "running":
+            running.append(name)
         else:
             stopped.append(name)
 
-    # ---- Output summary ----
 
+    # ---- Output summary ----
     if running:
         success(f"Running services: {', '.join(sorted(running))}")
 
-    if unhealthy:
-        caution(f"Unhealthy services: {', '.join(sorted(unhealthy))}")
+    if starting:
+        info(f"Starting services: {', '.join(sorted(starting))}")
         info(
-            "These services are running but not ready yet.\n"
-            "Give them another minute, or check logs with:\n"
-            "  ./orch logs"
+            "These services are initializing.\n"
+            "This is normal on first startup and may take a minute."
         )
+
     if restarting:
         caution(f"Restarting services: {', '.join(sorted(restarting))}")
-
         if "n8n" in restarting:
             info(
-                "n8n is restarting repeatedly. This is most often caused by:\n"
-                "  • A mismatched N8N_ENCRYPTION_KEY\n"
-                "  • A failed first-time initialization\n\n"
-                "If this is a new setup, the fastest fix is:\n"
+                "n8n is restarting repeatedly.\n"
+                "If this is a new setup, try:\n"
                 "  ./orch destroy --yes\n"
                 "  ./orch up"
             )
 
+    if unhealthy:
+        caution(f"Unhealthy services: {', '.join(sorted(unhealthy))}")
+        info("Check logs with:\n  ./orch logs")
+
     if stopped:
         warn(f"Stopped services: {', '.join(sorted(stopped))}")
-        info(
-            "These services are not running.\n"
-            "You can try restarting with:\n"
-            "  ./orch up"
-        )
+        info("Run:\n  ./orch up")
 
-    if not stopped and not unhealthy:
+    if not stopped and not unhealthy and not restarting and not starting:
         success("Environment looks healthy")
 
     info("Status check complete")
