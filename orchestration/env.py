@@ -128,4 +128,3 @@ def load_env() -> Dict[str, str]:
 
     info("Environment ready")
     return env
-``
