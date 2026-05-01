@@ -5,6 +5,16 @@ from .log import info, success, warn, caution
 from .docker_cli import COMPOSE_FILE
 
 
+def _docker_running() -> bool:
+    try:
+        subprocess.check_output(
+            ["docker", "info"],
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
 def _docker_compose_ps():
     """
     Return docker compose ps output as parsed JSON.
@@ -31,8 +41,18 @@ def show_status() -> None:
     try:
         services = _docker_compose_ps()
     except Exception:
-        warn("Unable to query Docker status")
-        info("Ensure Docker Desktop is running")
+        if not _docker_running():
+            warn("Docker is not running")
+            info("Start Docker Desktop and wait for it to finish initializing")
+            return
+
+        warn("Docker is running, but service status could not be determined")
+        info(
+            "This usually means one or more services are restarting or unhealthy.\n"
+            "Next steps:\n"
+            "  • Check logs: ./orch logs\n"
+            "  • Check container state: ./orch ps"
+        )
         return
 
     if not services:
@@ -43,13 +63,16 @@ def show_status() -> None:
     running = []
     stopped = []
     unhealthy = []
+    restarting = []
 
     for svc in services:
         name = svc.get("Service", "unknown")
         state = svc.get("State", "").lower()
         health = svc.get("Health", "").lower()
 
-        if state == "running" and health in ("", "healthy"):
+        if state == "restarting":
+            restarting.append(name)
+        elif state == "running" and health in ("", "healthy"):
             running.append(name)
         elif health == "unhealthy":
             unhealthy.append(name)
@@ -68,6 +91,18 @@ def show_status() -> None:
             "Give them another minute, or check logs with:\n"
             "  ./orch logs"
         )
+    if restarting:
+        caution(f"Restarting services: {', '.join(sorted(restarting))}")
+
+        if "n8n" in restarting:
+            info(
+                "n8n is restarting repeatedly. This is most often caused by:\n"
+                "  • A mismatched N8N_ENCRYPTION_KEY\n"
+                "  • A failed first-time initialization\n\n"
+                "If this is a new setup, the fastest fix is:\n"
+                "  ./orch destroy --yes\n"
+                "  ./orch up"
+            )
 
     if stopped:
         warn(f"Stopped services: {', '.join(sorted(stopped))}")

@@ -62,7 +62,9 @@ def load_env() -> Dict[str, str]:
     # --- Generate required secrets if missing ---
     generated = False
 
-    if not env.get("N8N_ENCRYPTION_KEY"):
+    key = env.get("N8N_ENCRYPTION_KEY", "").strip()
+
+    if not key:
         env["N8N_ENCRYPTION_KEY"] = secrets.token_hex(32)
         generated = True
 

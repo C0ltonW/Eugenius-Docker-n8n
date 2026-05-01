@@ -174,6 +174,17 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "extra_hosts": [
                 "host.docker.internal:host-gateway",
             ],
+            "healthcheck": {
+                "test": [
+                    "CMD-SHELL",
+                    "wget -q -O - http://localhost:5678/healthz || exit 1"
+                ],
+                "interval": "10s",
+                "timeout": "5s",
+                "retries": 30,
+                "start_period": "40s",
+            },
+
         }
 
         if "postgres" in services:
