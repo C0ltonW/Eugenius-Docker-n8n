@@ -2,7 +2,7 @@
 
 Opinionated, profile-driven Docker orchestration for **local n8n development**, with optional PostgreSQL and **local LLM support via Ollama**.
 
-This repository is designed to give you a **clean, reproducible, zero-SaaS** automation environment that starts working on first boot.
+This repository provides a **clean, reproducible, zero-SaaS** automation environment that works out of the box on first boot.
 
 ---
 
@@ -11,7 +11,7 @@ This repository is designed to give you a **clean, reproducible, zero-SaaS** aut
 - A local-first n8n development stack
 - Docker Compose generated programmatically for consistency
 - Optional AI sidecar using Ollama (local models, no cloud)
-- Profile-based service enablement (dev / heavy / minimal, etc.)
+- Profile-based service enablement (dev / heavy / minimal)
 
 ---
 
@@ -19,17 +19,17 @@ This repository is designed to give you a **clean, reproducible, zero-SaaS** aut
 
 ```mermaid
 flowchart LR
-    User[Developer / CI] -->|./compose| Orchestration[Compose Builder (Python)]
+    User[Developer or CI] -->|./compose| Orchestrator[Compose Builder]
 
-    subgraph Docker Network
+    subgraph Docker_Network[Docker Network]
         n8n[n8n]
         postgres[(Postgres)]
         ollama[Ollama AI]
     end
 
-    Orchestration --> n8n
-    Orchestration --> postgres
-    Orchestration --> ollama
+    Orchestrator --> n8n
+    Orchestrator --> postgres
+    Orchestrator --> ollama
 
     n8n --> postgres
     n8n -->|HTTP| ollama
@@ -40,9 +40,9 @@ flowchart LR
 ## What this project is NOT
 
 - A hosted SaaS or managed service
-- A Kubernetes or distributed deployment
-- A production-hardened security platform out of the box
-- A cloud LLM replacement
+- A Kubernetes or distributed platform
+- A production-hardened security solution
+- A cloud-based LLM replacement
 
 ---
 
@@ -59,7 +59,7 @@ cp .env.example .env
 
 > On first run, a `.env` file will be generated automatically if one does not exist.
 
-Once started:
+Once running:
 
 - n8n UI: http://localhost:5678
 - Ollama API (optional): http://localhost:11434
@@ -72,140 +72,123 @@ Once started:
 sequenceDiagram
     participant User
     participant Loader as env.py
-    participant FS as .env file
+    participant FS as .env
     participant Docker
 
     User->>Loader: ./compose up dev
-    Loader->>FS: Check for .env
-    alt .env missing
-        Loader->>Loader: Load env.default
-        Loader->>Loader: Generate secrets (dev)
-        Loader->>FS: Write .env
+    Loader->>FS: check .env
+    alt missing
+        Loader->>Loader: load env.default
+        Loader->>Loader: generate secrets
+        Loader->>FS: write .env
     end
-    Loader->>Docker: Generate docker-compose
-    Docker->>Docker: Start services
+    Loader->>Docker: generate compose
+    Docker->>Docker: start services
 ```
 
 ---
 
 ## Environment Configuration (.env)
 
-The application never reads environment variables directly from the shell.
+The application does **not** read environment variables directly from the shell.
 
 ### Environment Resolution Flow
 
 ```mermaid
 flowchart TD
-    Start[Startup] --> CheckEnv{.env exists?}
+    Start[Startup] --> CheckEnv{.env exists}
 
-    CheckEnv -->|No| LoadDefaults[Load templates/env.default]
-    LoadDefaults --> GenSecrets[Generate required secrets
-(dev mode only)]
-    GenSecrets --> WriteEnv[Write .env file]
-    WriteEnv --> EffectiveEnv[Effective Runtime Environment]
+    CheckEnv -->|No| LoadDefaults[Load env.default]
+    LoadDefaults --> GenSecrets[Generate secrets]
+    GenSecrets --> WriteEnv[Write .env]
+    WriteEnv --> EffectiveEnv[Runtime environment]
 
     CheckEnv -->|Yes| LoadEnv[Load .env]
     LoadEnv --> EffectiveEnv
 ```
 
-This project uses a **generated `.env` file** as the authoritative runtime configuration.
+`.env` is the **authoritative runtime configuration** after generation.
 
 ### How it works
 
-- `templates/env.default`  
-  Contains **safe, non-secret defaults** used to bootstrap configuration.
+- **templates/env.default**  
+  Safe, non-secret defaults used for bootstrap
 
-- `.env`  
-  User-owned, **authoritative configuration file** (gitignored).
+- **.env**  
+  User-owned, authoritative configuration (gitignored)
 
-- `.env.example`  
-  Documentation-only reference for all supported settings.
+- **.env.example**  
+  Documentation-only reference of supported settings
 
 ### First run behavior
 
-If **no `.env` file exists**:
+If `.env` does not exist:
 
-1. Defaults are loaded from `templates/env.default`
-2. Required secrets are generated automatically (**dev mode only**)
-   - `N8N_ENCRYPTION_KEY`
-   - `POSTGRES_PASSWORD`
-3. A new `.env` file is written to disk
+1. Defaults load from `templates/env.default`
+2. Required secrets are generated (dev mode only)
+3. A new `.env` file is written
 
-You will see a log message indicating this has occurred.
-
-After this point, `.env` belongs to you and will **never be overwritten automatically**.
+The file is never overwritten automatically after this point.
 
 ### Environment modes
 
-The `ENV_MODE` variable controls behavior:
+- **dev** – auto-generate missing secrets
+- **ci / prod** – fail fast if required values are missing
 
-- `dev` (default)  
-  Missing secrets are generated automatically.
-
-- `ci` / `prod`  
-  Missing required values cause startup to fail immediately.
-
-This ensures:
-- Easy first-run experience for local development
-- Safe, explicit behavior for CI and production-like environments
-
-> Do not commit `.env` to version control.  
 > Changing `N8N_ENCRYPTION_KEY` after initialization will break stored credentials.
 
 ---
 
 ## Profiles
 
-Profiles control which services are enabled.
+Profiles determine which services run.
 
-Typical examples:
+- **dev** – postgres, n8n, ollama
+- **heavy** – postgres, n8n (runtime tuned)
+- **minimal** – n8n only
 
-- **dev**: postgres, n8n, ollama
-- **heavy**: postgres, n8n (tuned for stress testing)
-- **minimal**: n8n only
-
-Profiles are defined in `orchestration/constants.py`.
+Defined in `orchestration/constants.py`.
 
 ---
 
 ## Ollama (Local AI)
 
-When the `ollama` service is enabled:
+When enabled:
 
-- Ollama runs as a Docker sidecar
-- Models are stored in a persistent Docker volume
-- A default model (e.g. `llama3`) is automatically pulled on first startup
+- Runs as a Docker sidecar
+- Models stored in persistent volume
+- Default model pulled automatically
 
-n8n can access Ollama at:
+Accessible from n8n at:
 
 ```
 http://ollama:11434
 ```
 
-### Notes
+Notes:
 
-- Models run **locally** (CPU by default)
-- First startup may take time while models download
-- Performance depends on your hardware
+- CPU-only by default
+- First startup may take time
+- Performance depends on hardware
 
 ---
 
 ## Data Persistence
 
-The following Docker volumes are used:
+Docker volumes:
 
-- `postgres_data` – PostgreSQL database
-- `n8n_data` – n8n configuration and credentials
+- `postgres_data` – database
+- `n8n_data` – n8n config and credentials
 - `n8n_files` – binary/workflow files
-- `ollama_data` – downloaded LLM models
+- `ollama_data` – downloaded models
 
-Removing these volumes will reset state.
+Deleting volumes resets state.
 
 ---
 
-## Diagram Rendering Note
+## Mermaid Rendering Note
 
-> Mermaid diagrams render fully on GitHub. Some local Markdown previews (e.g., PyCharm) may display simplified shapes.
+Mermaid diagrams render fully on GitHub. Some local Markdown previews may display simplified shapes.
 
 ---
 
