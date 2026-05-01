@@ -143,6 +143,10 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "EXECUTIONS_DATA_SAVE_ON_SUCCESS": env.get(
                 "EXECUTIONS_DATA_SAVE_ON_SUCCESS", "none"
             ),
+            "OLLAMA_BASE_URL": env.get(
+                "OLLAMA_BASE_URL", "http://ollama:11434"
+            ),
+
         }
 
         # Allowlisted pass-through (AI/dev-friendly, still explicit)
@@ -192,6 +196,12 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
                 "postgres": {"condition": "service_healthy"}
             }
 
+        if "ollama" in services:
+            services["n8n"].setdefault("depends_on", {})
+            services["n8n"]["depends_on"]["ollama"] = {
+                "condition": "service_started"
+            }
+
         # Optional local Dockerfile override (path safe regardless of cwd)
         dockerfile = ROOT / "docker" / "n8n" / "Dockerfile"
         if dockerfile.exists():
@@ -214,6 +224,22 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
                 "ollama_data:/root/.ollama",
             ],
             "restart": "unless-stopped",
+
+        }
+        # One-shot init container to ensure a default model is available
+        services["ollama_init"] = {
+            "image": env.get("OLLAMA_IMAGE", "ollama/ollama:latest"),
+            "container_name": f"{project_name}_ollama_init",
+            "depends_on": ["ollama"],
+            "volumes": [
+                "ollama_data:/root/.ollama",
+            ],
+            "entrypoint": [
+                "sh",
+                "-c",
+                f"ollama pull {env.get('OLLAMA_DEFAULT_MODEL', 'llama3')}",
+            ],
+            "restart": "no",
         }
 
     # --------------------

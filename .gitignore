@@ -1,5 +1,6 @@
 .venv
 .env
+!.env.example
 docker-compose.yml
 __pycache__/
 *.pyc

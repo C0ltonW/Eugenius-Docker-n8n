@@ -1,248 +1,214 @@
 # Eugenius-Docker-n8n
 
-A lightweight, profile-based Docker orchestration tool for running **n8n locally** with durable data, optional local AI services, and a clean, Python-driven workflow.
+Opinionated, profile-driven Docker orchestration for **local n8n development**, with optional PostgreSQL and **local LLM support via Ollama**.
 
-This project is designed for **local development only**. Each developer runs their own instance. There is no multi-user or shared environment.
-
----
-
-## What This Is
-
-- A **local n8n development environment**
-- Durable across restarts (no lost workflows or credentials)
-- Profile-based (core, ai, tools, heavy)
-- AI-ready, but **not AI-locked**
-- Simple Python orchestration (no Docker CLI sprawl)
+This repository is designed to give you a **clean, reproducible, zero-SaaS** automation environment that starts working on first boot.
 
 ---
 
-## What This Is NOT
+## What this project is
 
-This project is **not**:
-
-- A production / HA n8n deployment
-- A multi-user setup
-- A Kubernetes solution
-- A queue-mode / Redis-backed cluster
-- A hosted or managed service
-
-The goal is **boring, predictable local development**.
+- A local-first n8n development stack
+- Docker Compose generated programmatically for consistency
+- Optional AI sidecar using Ollama (local models, no cloud)
+- Profile-based service enablement (dev / heavy / minimal, etc.)
 
 ---
 
-## Requirements
+## Architecture Overview
 
-- Docker Desktop (with Docker Compose v2)
-- Python 3.9+
-- (WSL users) Docker Desktop WSL integration enabled
+```mermaid
+flowchart LR
+    User[Developer / CI] -->|./compose| Orchestration[Compose Builder (Python)]
+
+    subgraph Docker Network
+        n8n[n8n]
+        postgres[(Postgres)]
+        ollama[Ollama AI]
+    end
+
+    Orchestration --> n8n
+    Orchestration --> postgres
+    Orchestration --> ollama
+
+    n8n --> postgres
+    n8n -->|HTTP| ollama
+```
+
+---
+
+## What this project is NOT
+
+- A hosted SaaS or managed service
+- A Kubernetes or distributed deployment
+- A production-hardened security platform out of the box
+- A cloud LLM replacement
 
 ---
 
 ## Quick Start
 
-### 1. Clone the repo
-
 ```bash
-git clone <repo-url>
-cd n8n-orchestrator
+git clone https://github.com/<your-org>/Eugenius-Docker-n8n.git
+cd Eugenius-Docker-n8n
+cp .env.example .env
+
+# Edit required secrets in .env
+./compose up dev
 ```
 
-> **WSL users:** clone into your Linux home directory  
-> `/mnt/c/...`  
-> `/home/<you>/...`
+> On first run, a `.env` file will be generated automatically if one does not exist.
+
+Once started:
+
+- n8n UI: http://localhost:5678
+- Ollama API (optional): http://localhost:11434
 
 ---
 
-### 2. Create `.env`
+## Startup Lifecycle
 
-```bash
-cp templates/env.default .env
+```mermaid
+sequenceDiagram
+    participant User
+    participant Loader as env.py
+    participant FS as .env file
+    participant Docker
+
+    User->>Loader: ./compose up dev
+    Loader->>FS: Check for .env
+    alt .env missing
+        Loader->>Loader: Load env.default
+        Loader->>Loader: Generate secrets (dev)
+        Loader->>FS: Write .env
+    end
+    Loader->>Docker: Generate docker-compose
+    Docker->>Docker: Start services
 ```
-
-Fill in **only** these required values:
-
-```env
-N8N_ENCRYPTION_KEY=<openssl rand -hex 32>
-POSTGRES_PASSWORD=<anything>
-```
-
-️ **Important:**  
-Do **not** change `N8N_ENCRYPTION_KEY` once set.  
-Changing it will make stored credentials unreadable.
 
 ---
 
-### 3. Start n8n
+## Environment Configuration (.env)
 
-```bash
-./orch up
+The application never reads environment variables directly from the shell.
+
+### Environment Resolution Flow
+
+```mermaid
+flowchart TD
+    Start[Startup] --> CheckEnv{.env exists?}
+
+    CheckEnv -->|No| LoadDefaults[Load templates/env.default]
+    LoadDefaults --> GenSecrets[Generate required secrets
+(dev mode only)]
+    GenSecrets --> WriteEnv[Write .env file]
+    WriteEnv --> EffectiveEnv[Effective Runtime Environment]
+
+    CheckEnv -->|Yes| LoadEnv[Load .env]
+    LoadEnv --> EffectiveEnv
 ```
 
-Access n8n at:
+This project uses a **generated `.env` file** as the authoritative runtime configuration.
 
-```
-http://localhost:5678
-```
+### How it works
+
+- `templates/env.default`  
+  Contains **safe, non-secret defaults** used to bootstrap configuration.
+
+- `.env`  
+  User-owned, **authoritative configuration file** (gitignored).
+
+- `.env.example`  
+  Documentation-only reference for all supported settings.
+
+### First run behavior
+
+If **no `.env` file exists**:
+
+1. Defaults are loaded from `templates/env.default`
+2. Required secrets are generated automatically (**dev mode only**)
+   - `N8N_ENCRYPTION_KEY`
+   - `POSTGRES_PASSWORD`
+3. A new `.env` file is written to disk
+
+You will see a log message indicating this has occurred.
+
+After this point, `.env` belongs to you and will **never be overwritten automatically**.
+
+### Environment modes
+
+The `ENV_MODE` variable controls behavior:
+
+- `dev` (default)  
+  Missing secrets are generated automatically.
+
+- `ci` / `prod`  
+  Missing required values cause startup to fail immediately.
+
+This ensures:
+- Easy first-run experience for local development
+- Safe, explicit behavior for CI and production-like environments
+
+> Do not commit `.env` to version control.  
+> Changing `N8N_ENCRYPTION_KEY` after initialization will break stored credentials.
 
 ---
 
 ## Profiles
 
-Profiles control **what services exist**, not behavior.
+Profiles control which services are enabled.
 
-| Profile | Services |
-|------|---------|
-| `core` | n8n + Postgres |
-| `ai` | core + Ollama |
-| `tools` | core + Adminer |
-| `dev` | core + Ollama + Adminer |
-| `heavy` | core + runtime tuning |
+Typical examples:
 
-Example:
+- **dev**: postgres, n8n, ollama
+- **heavy**: postgres, n8n (tuned for stress testing)
+- **minimal**: n8n only
 
-```bash
-./orch --profile ai up
+Profiles are defined in `orchestration/constants.py`.
+
+---
+
+## Ollama (Local AI)
+
+When the `ollama` service is enabled:
+
+- Ollama runs as a Docker sidecar
+- Models are stored in a persistent Docker volume
+- A default model (e.g. `llama3`) is automatically pulled on first startup
+
+n8n can access Ollama at:
+
 ```
+http://ollama:11434
+```
+
+### Notes
+
+- Models run **locally** (CPU by default)
+- First startup may take time while models download
+- Performance depends on your hardware
 
 ---
 
 ## Data Persistence
 
-Data is persisted via **named Docker volumes**:
+The following Docker volumes are used:
 
-- Postgres stores workflows, executions, and credentials
-- n8n config is persisted
-- Binary data is stored on the filesystem
+- `postgres_data` – PostgreSQL database
+- `n8n_data` – n8n configuration and credentials
+- `n8n_files` – binary/workflow files
+- `ollama_data` – downloaded LLM models
 
-You can safely:
-- stop containers
-- rebuild images
-- restart Docker
-
- **Data is not lost**
-
-The **only** destructive command is:
-
-```bash
-./orch destroy --yes
-```
+Removing these volumes will reset state.
 
 ---
 
-## Custom n8n Image
+## Diagram Rendering Note
 
-This repo includes a minimal custom n8n image at:
-
-```
-docker/n8n/Dockerfile
-```
-
-This allows you to:
-- add system dependencies
-- use Python scripts in workflows
-- extend later without refactoring
-
-If the Dockerfile exists, it is used automatically.
-
----
-
-## AI Usage (Important)
-
-### AI Is Optional and Decoupled
-
-This project **does not depend on Ollama**.
-
-Ollama is included **only** as:
-- a local testing AI
-- a development convenience
-- a replaceable sidecar
-
-You are **not locked in**.
-
----
-
-### How AI Is Accessed
-
-n8n interacts with AI **via HTTP**, not plugins or custom nodes.
-
-That means you can use:
-- Ollama (local)
-- OpenAI
-- Azure OpenAI
-- Anthropic
-- Any internal or hosted model
-
-No changes to orchestration are required.
-
----
-
-### Ollama (Local Testing Only)
-
-If you enable the `ai` or `dev` profile, Ollama runs locally at:
-
-```
-http://localhost:11434
-```
-
-From inside n8n, use:
-
-```
-http://host.docker.internal:11434
-```
-
-This works on:
-- WSL + Docker Desktop
-- macOS
-- Linux
-
----
-
-### Example Workflow
-
-An example Ollama workflow is provided:
-
-```
-examples/ollama_http_example.json
-```
-
-This demonstrates:
-- HTTP-based AI calls
-- local model usage
-- zero coupling to Ollama itself
-
-You can import it directly into n8n.
-
----
-
-## Binary / File Handling
-
-This setup uses filesystem-based binary storage:
-
-```
-/files
-```
-
-This is intentional and recommended for:
-- AI responses
-- large payloads
-- generated artifacts
-
-The directory is backed by a Docker volume and is persistent.
-
----
-
-## Common Commands
-
-```bash
-./orch up
-./orch down
-./orch logs
-./orch ps
-./orch destroy --yes
-```
+> Mermaid diagrams render fully on GitHub. Some local Markdown previews (e.g., PyCharm) may display simplified shapes.
 
 ---
 
 ## License
 
-MIT
+See [LICENSE](LICENSE).
