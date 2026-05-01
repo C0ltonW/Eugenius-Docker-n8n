@@ -186,9 +186,9 @@ Deleting volumes resets state.
 
 ---
 
-## Mermaid Rendering Note
+## Diagram Rendering Note
 
-Mermaid diagrams render fully on GitHub. Some local Markdown previews may display simplified shapes.
+Mermaid diagrams render on GitHub. Some local Markdown previews may display simplified shapes.
 
 ---
 
