@@ -181,12 +181,12 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "healthcheck": {
                 "test": [
                     "CMD-SHELL",
-                    "wget -q -O - http://localhost:5678/healthz || exit 1"
+                    "curl -fsS http://localhost:5678/ || exit 1"
                 ],
-                "interval": "10s",
+                "interval": "15s",
                 "timeout": "5s",
-                "retries": 30,
-                "start_period": "40s",
+                "retries": 20,
+                "start_period": "180s",
             },
 
         }
