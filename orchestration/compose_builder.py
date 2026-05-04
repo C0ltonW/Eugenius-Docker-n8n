@@ -223,9 +223,13 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "volumes": [
                 "ollama_data:/root/.ollama",
             ],
+            "environment": {
+                "OLLAMA_MODELS": "/root/.ollama/models",
+                "HOME": "/root",
+            },
             "restart": "unless-stopped",
-
         }
+
         # One-shot init container to ensure a default model is available
         services["ollama_init"] = {
             "image": env.get("OLLAMA_IMAGE", "ollama/ollama:latest"),
