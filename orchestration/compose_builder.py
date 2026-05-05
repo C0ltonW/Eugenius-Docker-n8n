@@ -66,7 +66,6 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
         "postgres_data": {},
         "n8n_data": {},
         "n8n_files": {},
-        "ollama_data": {},
     }
 
     # --------------------
@@ -143,10 +142,6 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
             "EXECUTIONS_DATA_SAVE_ON_SUCCESS": env.get(
                 "EXECUTIONS_DATA_SAVE_ON_SUCCESS", "none"
             ),
-            "OLLAMA_BASE_URL": env.get(
-                "OLLAMA_BASE_URL", "http://ollama:11434"
-            ),
-
         }
 
         # Allowlisted pass-through (AI/dev-friendly, still explicit)
@@ -196,55 +191,12 @@ def build_compose(env: Dict[str, str], profile: str) -> Dict:
                 "postgres": {"condition": "service_healthy"}
             }
 
-        if "ollama" in services:
-            services["n8n"].setdefault("depends_on", {})
-            services["n8n"]["depends_on"]["ollama"] = {
-                "condition": "service_started"
-            }
-
         # Optional local Dockerfile override (path safe regardless of cwd)
         dockerfile = ROOT / "docker" / "n8n" / "Dockerfile"
         if dockerfile.exists():
             info("Local n8n Dockerfile detected — building image on the fly")
             services["n8n"]["build"] = {"context": str(dockerfile.parent)}
             services["n8n"]["image"] = f"{project_name}-n8n:dev"
-
-    # --------------------
-    # Ollama (AI sidecar)
-    # --------------------
-    if "ollama" in services_enabled:
-        info("Ollama AI sidecar enabled")
-        services["ollama"] = {
-            "image": env.get("OLLAMA_IMAGE", "ollama/ollama:latest"),
-            "container_name": f"{project_name}_ollama",
-            "ports": [
-                f"{env.get('OLLAMA_PORT', '11434')}:11434",
-            ],
-            "volumes": [
-                "ollama_data:/root/.ollama",
-            ],
-            "environment": {
-                "OLLAMA_MODELS": "/root/.ollama/models",
-                "HOME": "/root",
-            },
-            "restart": "unless-stopped",
-        }
-
-        # One-shot init container to ensure a default model is available
-        services["ollama_init"] = {
-            "image": env.get("OLLAMA_IMAGE", "ollama/ollama:latest"),
-            "container_name": f"{project_name}_ollama_init",
-            "depends_on": ["ollama"],
-            "volumes": [
-                "ollama_data:/root/.ollama",
-            ],
-            "entrypoint": [
-                "sh",
-                "-c",
-                f"ollama pull {env.get('OLLAMA_DEFAULT_MODEL', 'llama3')}",
-            ],
-            "restart": "no",
-        }
 
     # --------------------
     # Adminer (optional)

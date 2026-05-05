@@ -1,6 +1,6 @@
 # Eugenius-Docker-n8n
 
-Opinionated, profile-driven Docker orchestration for **local n8n development**, with optional PostgreSQL and **local LLM support via Ollama**.
+Opinionated, profile-driven Docker orchestration for **local n8n development**, with optional PostgreSQL
 
 This repository provides a **clean, reproducible, zero-SaaS** automation environment that works out of the box on first boot.
 
@@ -10,7 +10,6 @@ This repository provides a **clean, reproducible, zero-SaaS** automation environ
 
 - A local-first n8n development stack
 - Docker Compose generated programmatically for consistency
-- Optional AI sidecar using Ollama (local models, no cloud)
 - Profile-based service enablement (dev / heavy / minimal)
 
 ---
@@ -24,15 +23,12 @@ flowchart LR
     subgraph Docker_Network[Docker Network]
         n8n[n8n]
         postgres[(Postgres)]
-        ollama[Ollama AI]
     end
 
     Orchestrator --> n8n
     Orchestrator --> postgres
-    Orchestrator --> ollama
-
+    
     n8n --> postgres
-    n8n -->|HTTP| ollama
 ```
 
 ---
@@ -62,7 +58,6 @@ cp .env.example .env
 Once running:
 
 - n8n UI: http://localhost:5678
-- Ollama API (optional): http://localhost:11434
 
 ---
 
@@ -143,26 +138,12 @@ The file is never overwritten automatically after this point.
 
 Profiles determine which services run.
 
-- **dev** – postgres, n8n, ollama
 - **heavy** – postgres, n8n (runtime tuned)
 - **minimal** – n8n only
 
 Defined in `orchestration/constants.py`.
 
 ---
-
-## Ollama (Local AI)
-
-When enabled:
-
-- Runs as a Docker sidecar
-- Models stored in persistent volume
-- Default model pulled automatically
-
-Accessible from n8n at:
-
-```
-http://ollama:11434
 ```
 
 Notes:
@@ -180,7 +161,6 @@ Docker volumes:
 - `postgres_data` – database
 - `n8n_data` – n8n config and credentials
 - `n8n_files` – binary/workflow files
-- `ollama_data` – downloaded models
 
 Deleting volumes resets state.
 
